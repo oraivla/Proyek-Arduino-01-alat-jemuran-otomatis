@@ -1,0 +1,74 @@
+#include <Servo.h>
+Servo jemuran;
+
+// Pin sensor, servo, dan buzzer
+int pinSensorHujan = 2;
+int pinLDR = A0;
+int pinKelembapan = A1;
+int pinServo = 9;
+int pinBuzzer = 8;
+
+// Variabel pembacaan sensor
+int hujan;
+int cahaya;
+int lembap;
+
+// Variabel status
+int posisiServo = 90;       // posisi awal
+int statusCuaca = 0;        // 0 = awal, 1 = hujan, 2 = lembap, 3 = kering
+unsigned long waktuTerakhir = 0; 
+const unsigned long jeda = 2000; // jeda 2 detik
+
+void setup() {
+  jemuran.attach(pinServo);
+  pinMode(pinSensorHujan, INPUT);
+  pinMode(pinLDR, INPUT);
+  pinMode(pinKelembapan, INPUT);
+  pinMode(pinBuzzer, OUTPUT);
+  Serial.begin(9600);
+  jemuran.write(posisiServo);
+}
+
+void loop() {
+  // Baca sensor
+  hujan = digitalRead(pinSensorHujan);
+  cahaya = analogRead(pinLDR);
+  lembap = analogRead(pinKelembapan);
+
+  // Tampilkan data ke serial monitor
+  Serial.print("Hujan: "); Serial.print(hujan);
+  Serial.print(" | Cahaya: "); Serial.print(cahaya);
+  Serial.print(" | Lembap: "); Serial.println(lembap);
+
+  // Biar tidak terlalu sensitif, beri jeda
+  if (millis() - waktuTerakhir > jeda) {
+    waktuTerakhir = millis();
+
+    // 🌧 Kondisi HUJAN → Jemuran menutup + buzzer bunyi
+    if (hujan == LOW && statusCuaca != 1) {
+      jemuran.write(180);
+      posisiServo = 0;
+      statusCuaca = 1;
+      Serial.println("🌧 Hujan turun → Jemuran menutup");
+      tone(pinBuzzer, 1000, 500); // bunyi 0.5 detik
+    }
+
+    // 🌤 Cerah tapi masih lembap → Jemuran membuka
+    else if (hujan == HIGH && lembap > 600 && statusCuaca != 2) {
+      jemuran.write(135);
+      posisiServo = 135;
+      statusCuaca = 2;
+      Serial.println("🌤 Cerah & lembap → Jemuran membuka");
+      tone(pinBuzzer, 1500, 300); // bunyi lebih pendek
+    }
+
+    // ☀ Cerah dan sudah kering → Servo diam + buzzer bunyi penanda selesai
+    else if (hujan == HIGH && lembap <= 600 && statusCuaca != 3) {
+      jemuran.write(90);
+      posisiServo = 90;
+      statusCuaca = 3;
+      Serial.println("☀ Cerah & kering → Pakaian kering, jemuran diam");
+      tone(pinBuzzer, 2000, 800); // bunyi 0.8 detik (tanda pakaian kering)
+    }
+  }
+}
